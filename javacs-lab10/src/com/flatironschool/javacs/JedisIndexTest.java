@@ -72,4 +72,5 @@ public class JedisIndexTest {
 		assertThat(map.get(url1), is(339));
 		assertThat(map.get(url2), is(264));
 	}
+
 }

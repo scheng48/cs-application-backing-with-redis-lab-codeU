@@ -59,6 +59,17 @@ public class JedisIndex {
 		String redisKey = termCounterKey(url);
 		return jedis.exists(redisKey);
 	}
+
+	/**
+	 * Adds URL to the set associated with the term
+	 *
+	 * 
+	 */
+	// public void add(String term, TermCounter tc) { //remember to call
+	// 	String url = tc.getLabel();
+	// 	String redisKey = urlSetKey(term);
+	// 	jedis.sadd(redisKey, url);
+	// }
 	
 	/**
 	 * Looks up a search term and returns a set of URLs.
@@ -66,9 +77,10 @@ public class JedisIndex {
 	 * @param term
 	 * @return Set of URLs.
 	 */
-	public Set<String> getURLs(String term) {
-        // FILL THIS IN!
-		return null;
+	public Set<String> getURLs(String term) {  // from
+		String redisKey = urlSetKey(term);
+		Set<String> urlSet = jedis.smembers(redisKey);
+		return urlSet;
 	}
 
     /**
@@ -77,9 +89,15 @@ public class JedisIndex {
 	 * @param term
 	 * @return Map from URL to count.
 	 */
-	public Map<String, Integer> getCounts(String term) {
-        // FILL THIS IN!
-		return null;
+	public Map<String, Integer> getCounts(String term) { //database
+		Map<String, Integer> countMap = new HashMap<String, Integer>();
+
+        Set<String> urls = getURLs(term);
+        for(String url: urls) {
+        	Integer count = getCount(url, term);
+        	countMap.put(url, count);
+        }
+		return countMap;
 	}
 
     /**
@@ -89,11 +107,12 @@ public class JedisIndex {
 	 * @param term
 	 * @return
 	 */
-	public Integer getCount(String url, String term) {
-        // FILL THIS IN!
-		return null;
+	public Integer getCount(String url, String term) { //pls
+        String redisKey = termCounterKey(url);
+        String strCount = jedis.hget(redisKey, term);
+        //System.out.println(strCount + " string count");
+		return new Integer(strCount);
 	}
-
 
 	/**
 	 * Add a page to the index.
@@ -101,10 +120,29 @@ public class JedisIndex {
 	 * @param url         URL of the page.
 	 * @param paragraphs  Collection of elements that should be indexed.
 	 */
-	public void indexPage(String url, Elements paragraphs) {
-        // FILL THIS IN!
-	}
+	public void indexPage(String url, Elements paragraphs) { //thx
+        TermCounter tc = new TermCounter(url);
+		tc.processElements(paragraphs);
 
+		Transaction t = jedis.multi(); // put in queue thingy so its faster
+
+		String termKey = termCounterKey(url); // to find tc
+		
+		t.del(termKey); // clear entry
+
+		for (String term: tc.keySet()) {
+			//System.out.println(term + " is the term");
+			String redisKey = urlSetKey(term); // to find map of string, int
+			Integer count = tc.get(term);
+			String strCount = count.toString();
+			//System.out.println(strCount);
+			t.hset(termKey, term, strCount);
+			t.sadd(redisKey, url);
+		}
+
+		t.exec(); // execute the loop and stuff so calls don't take forever?
+	}
+	
 	/**
 	 * Prints the contents of the index.
 	 * 
